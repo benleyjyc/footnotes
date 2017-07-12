@@ -24,6 +24,8 @@ class MCI_Footnotes_Task {
 	 * @var array
 	 */
 	public static $a_arr_Footnotes = array();
+	
+	public static $a_arr_Footnotes_Without_Duplicates = array();
 
 	/**
 	 * Flag if the display of 'LOVE FOOTNOTES' is allowed on the current public page.
@@ -76,6 +78,7 @@ class MCI_Footnotes_Task {
         }
         // reset stored footnotes when displaying the header
         self::$a_arr_Footnotes = array();
+		self::$a_arr_Footnotes_Without_Duplicates = array();
         self::$a_bool_AllowLoveMe = true;
 	}
 
@@ -335,6 +338,8 @@ class MCI_Footnotes_Task {
 		}
 
 		// search footnotes short codes in the content
+		
+		$iterate = 1;
 		do {
 			// get first occurrence of the footnote short code [start]
 			$l_int_PosStart = strpos($p_str_Content, $l_str_StartingTag, $l_int_PosStart);
@@ -356,7 +361,7 @@ class MCI_Footnotes_Task {
 			$l_str_FootnoteReplaceText = "";
 			// display the footnote as mouse-over box
 			if (!$p_bool_HideFootnotesText) {
-				$l_str_Index = MCI_Footnotes_Convert::Index($l_int_FootnoteIndex, MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+				
 
                 // display only an excerpt of the footnotes text if enabled
 				$l_str_ExcerptText = $l_str_FootnoteText;
@@ -371,16 +376,53 @@ class MCI_Footnotes_Task {
                     }
                 }
 
+				$l_str_Index = MCI_Footnotes_Convert::Index($l_int_FootnoteIndex, MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+				$id = $l_str_Index;
 				// fill the footnotes template
-				$l_obj_Template->replace(
-					array(
-						"id" => self::$a_str_Prefix . $l_str_Index,
-						"index" => $l_str_Index,
-						"text" => MCI_Footnotes_Convert::toBool(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_BOOL_FOOTNOTES_MOUSE_OVER_BOX_ENABLED)) ? $l_str_ExcerptText : "",
-						"before" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_BEFORE),
-						"after" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_AFTER)
-					)
-				);
+				$alpha_same = 2;
+				$found = false;
+				for ($l_str_CheckIndex = 0; $l_str_CheckIndex < count(self::$a_arr_Footnotes); $l_str_CheckIndex++) {
+					// check if a further footnote is the same as the actual one
+					if ($l_str_FootnoteText == self::$a_arr_Footnotes[$l_str_CheckIndex]) {
+						$index_to_set = $l_str_CheckIndex + 1;
+						// search index in array without duplicates
+						for($i = 0;$i < count(self::$a_arr_Footnotes_Without_Duplicates);$i++){
+							if ($l_str_FootnoteText == self::$a_arr_Footnotes_Without_Duplicates[$i]) {
+								$index_to_set = $i+1;
+								break;
+							}
+						}
+							$id = $index_to_set . "_" . $iterate;
+							$l_obj_Template->replace(
+								array(
+									"id" => self::$a_str_Prefix . $id,
+									"index" => $index_to_set,
+									"text" => MCI_Footnotes_Convert::toBool(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_BOOL_FOOTNOTES_MOUSE_OVER_BOX_ENABLED)) ? $l_str_ExcerptText : "",
+									"before" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_BEFORE),
+									"after" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_AFTER)
+								)
+							);
+							
+						$found = true;
+						$alpha_same++;
+						break;
+					}
+				}
+				
+				
+				
+				if(!$found){
+					$l_obj_Template->replace(
+						array(
+							"id" => self::$a_str_Prefix . $id,
+							"index" => $l_str_Index,
+							"text" => MCI_Footnotes_Convert::toBool(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_BOOL_FOOTNOTES_MOUSE_OVER_BOX_ENABLED)) ? $l_str_ExcerptText : "",
+							"before" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_BEFORE),
+							"after" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_STYLING_AFTER)
+						)
+					);
+				}
+				
 				$l_str_FootnoteReplaceText = $l_obj_Template->getContent();
 				// reset the template
 				$l_obj_Template->reload();
@@ -389,7 +431,7 @@ class MCI_Footnotes_Task {
 					$l_int_OffsetX = intval(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_INT_FOOTNOTES_MOUSE_OVER_BOX_OFFSET_X));
 					$l_obj_TemplateTooltip->replace(
 						array(
-							"id" => self::$a_str_Prefix . $l_str_Index,
+							"id" => self::$a_str_Prefix . $id,
 							"position" => MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_MOUSE_OVER_BOX_POSITION),
 							"offset-y" => !empty($l_int_OffsetY) ? $l_int_OffsetY : 0,
 							"offset-x" => !empty($l_int_OffsetX) ? $l_int_OffsetX : 0
@@ -405,11 +447,17 @@ class MCI_Footnotes_Task {
 			if (!empty($l_str_FootnoteText)) {
 				// set footnote to the output box at the end
 				self::$a_arr_Footnotes[] = $l_str_FootnoteText;
+				
 				// increase footnote index
-				$l_int_FootnoteIndex++;
+				if(!$found){
+					self::$a_arr_Footnotes_Without_Duplicates[] = $l_str_FootnoteText;
+					$l_int_FootnoteIndex++;
+				}
 			}
 			// add offset to the new starting position
 			$l_int_PosStart += $l_int_Length + strlen($l_str_EndingTag);
+			$l_int_PosStart = $l_int_Length + strlen($l_str_FootnoteReplaceText);
+			$iterate++;
 		} while (true);
 
 		// return content
@@ -454,21 +502,45 @@ class MCI_Footnotes_Task {
 			}
 			// get footnote index
 			$l_str_FirstFootnoteIndex = ($l_str_Index + 1);
-			$l_str_FootnoteIndex = MCI_Footnotes_Convert::Index(($l_str_Index + 1),  MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+			
+			// Search corresponding index in array without duplicates
+			for($i = 0;$i < count(self::$a_arr_Footnotes_Without_Duplicates);$i++){
+				if ($l_str_FootnoteText == self::$a_arr_Footnotes_Without_Duplicates[$i]) {
+					$l_str_FirstFootnoteIndex = $i+1;
+					break;
+				}
+			}
+			
+			$l_str_FootnoteIndex = MCI_Footnotes_Convert::Index($l_str_FirstFootnoteIndex,  MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+			$l_str_FootnoteIndex .= ".";
 
 			// check if it isn't the last footnote in the array
-			if ($l_str_FirstFootnoteIndex < count(self::$a_arr_Footnotes) && MCI_Footnotes_Convert::toBool(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_BOOL_COMBINE_IDENTICAL_FOOTNOTES))) {
+			if (($l_str_Index + 1) < count(self::$a_arr_Footnotes) && MCI_Footnotes_Convert::toBool(MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_BOOL_COMBINE_IDENTICAL_FOOTNOTES))) {
 				// get all footnotes that I haven't passed yet
-				for ($l_str_CheckIndex = $l_str_FirstFootnoteIndex; $l_str_CheckIndex < count(self::$a_arr_Footnotes); $l_str_CheckIndex++) {
+				$alpha_same = 2;
+				for ($l_str_CheckIndex = ($l_str_Index + 1); $l_str_CheckIndex < count(self::$a_arr_Footnotes); $l_str_CheckIndex++) {
 					// check if a further footnote is the same as the actual one
+					
 					if ($l_str_FootnoteText == self::$a_arr_Footnotes[$l_str_CheckIndex]) {
-						// set the further footnote as empty so it won't be displayed later
-						self::$a_arr_Footnotes[$l_str_CheckIndex] = "";
+						if($alpha_same == 2){
+							//$l_str_FootnoteIndex .= " " . MCI_Footnotes_Convert::Index(1,  "latin_low");
+							$l_str_FootnoteIndex .= "<a href='javascript:void(0);' onclick='footnote_moveToAnchor(\"footnote_plugin_tooltip_".($l_str_FirstFootnoteIndex)."\");'>" . MCI_Footnotes_Convert::Index(1,  "latin_low") . "</a>";
+						}
+						
 						// add the footnote index to the actual index
-						$l_str_FootnoteIndex .= ", " . MCI_Footnotes_Convert::Index(($l_str_CheckIndex + 1), MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+						//$l_str_FootnoteIndex .= ", " . MCI_Footnotes_Convert::Index(($l_str_CheckIndex + 1), MCI_Footnotes_Settings::instance()->get(MCI_Footnotes_Settings::C_STR_FOOTNOTES_COUNTER_STYLE));
+						
+						$l_str_FootnoteIndex .= ", <a href='javascript:void(0);' onclick='footnote_moveToAnchor(\"footnote_plugin_tooltip_".($l_str_FirstFootnoteIndex)."_".($l_str_CheckIndex+1)."\");'>" . MCI_Footnotes_Convert::Index($alpha_same, 'latin_low') . "</a>";
+						$alpha_same++;
+						
+						// set the further footnote as empty so it won't be displayed later
+					
+						self::$a_arr_Footnotes[$l_str_CheckIndex] = "";
 					}
 				}
 			}
+			
+			
 			// replace all placeholders in the template
 			$l_obj_Template->replace(
 				array(
